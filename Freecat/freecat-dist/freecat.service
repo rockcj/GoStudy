@@ -1,0 +1,15 @@
+[Unit]
+Description=Freecat proxy (mihomo core)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=FREECAT_HOME=/etc/freecat
+ExecStart=/opt/freecat/freecat run --tun --core /opt/freecat/mihomo
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+# Go 安装包 / 压缩包
+*.tar.gz
+*.zip
+
+# 编译产物
+*.exe
+Freecat/dist/
+Freecat/freecat-dist/freecat
+Freecat/freecat-dist/mihomo
