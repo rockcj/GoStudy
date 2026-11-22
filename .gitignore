@@ -7,3 +7,7 @@
 Freecat/dist/
 Freecat/freecat-dist/freecat
 Freecat/freecat-dist/mihomo
+Study/code/IM-System/server
+
+# 安装包
+*.msi
