@@ -2,6 +2,8 @@ package main
 
 import (
 	"net"
+	"strings"
+	"sync"
 )
 
 // 用户类
@@ -12,6 +14,14 @@ type User struct {
 	conn net.Conn    //客户端的连接
 
 	server *Server //将用户关联上server，因为要知道当前用户是属于哪个server
+
+	done      chan struct{}
+	closeOnce sync.Once
+}
+
+// 用于销毁用户资源
+func (u *User) Close() {
+	u.closeOnce.Do(func() { close(u.done) })
 }
 
 // 创建一个用户的API，还要传入其是哪个server的
@@ -72,6 +82,25 @@ func (this *User) DoMessage(msg string) {
 			this.SendMsg(onlineMsg) //方法2
 		}
 		this.server.mapLock.Unlock()
+	} else if len(msg) > 7 && msg[:7] == "rename|" { //msg>7个字符 且 前7个字符为“rename|”的情况下
+		//修改用户名: 规定用户输入 "rename|用户名" 触发修改
+		//1.使用split函数切割字符串提取用户名
+		newName := strings.Split(msg, "|")[1] //"|"将字符串切割为2份（数组[0]、[1]）：第0份"rename" 第1份 用户名
+
+		//2.注意要判断用户名是否已经存在，因为使用的是map存储，而name又作为key,所以不能够重复
+		_, ok := this.server.OnlineMap[newName] //根据key(name)查询用户，我们不关心值，只关系是否存在
+		if ok {
+			this.SendMsg("用户名已被使用，请换一个")
+		} else {
+			//3.修改用户名
+			this.server.mapLock.Lock()
+			delete(this.server.OnlineMap, this.Name) //先删除OnlineMap的用户
+			this.server.OnlineMap[newName] = this    //再添加新名字的用户
+			this.server.mapLock.Unlock()
+			this.Name = newName //修改this用户的name值
+			this.SendMsg("用户名修改成功: " + this.Name + "\n")
+		}
+
 	} else {
 		//通过user调用其关联的server中的BroadCast即可
 		this.server.BroadCast(this, msg)
@@ -81,7 +110,15 @@ func (this *User) DoMessage(msg string) {
 // 创建一个监听当前对象channel的goroutine方法 用于监听服务端消息并且实时发送给客户端
 func (this *User) ListenMessage() {
 	for {
-		msg := <-this.C                     //读取C(管道中)的数据
-		this.conn.Write([]byte(msg + "\n")) //将msg写入连接的管道/相当于发送数据
+		for {
+			select {
+			case msg := <-this.C: //读取C(管道中)的数据
+				if _, err := this.conn.Write([]byte(msg + "\n")); err != nil { //将msg写入连接的管道/相当于发送数据
+					return // 连接已坏，协程自己退出
+				}
+			case <-this.done:
+				return
+			}
+		}
 	}
 }

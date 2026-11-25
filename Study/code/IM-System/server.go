@@ -6,6 +6,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -64,6 +65,9 @@ func (this *Server) Handler(conn net.Conn) {
 	//1.用户上线
 	user.Online()
 
+	//监听用户是否活跃的channel
+	isLive := make(chan bool)
+
 	//3.接收客户端发送的消息
 	go func() { //go一个匿名方法接收信息
 		buf := make([]byte, 4096) //初始化接受字符串的长度
@@ -84,10 +88,37 @@ func (this *Server) Handler(conn net.Conn) {
 
 			//将得到的消息进行广播
 			user.DoMessage(msg) //用户进行处理
+
+			//用户发送任意消息代表用户活跃，向管道发送true
+			//非阻塞发送：如果 Handler 已经 return（比如被踢），没人接收时直接丢弃，避免协程永久阻塞
+			select {
+			case isLive <- true:
+			default: // 没人接收就丢弃，不阻塞
+			}
 		}
 	}()
 	//当前handler阻塞即可
-	select {}
+	//实现超时强踢，用户活跃度处理的功能
+	for {
+		//select可监控管道的消息
+		select {
+		//和其他语言一样：select中只要前面的case为true，那么就会一直往下执行其他的case，直到遇到为false的case时退出select
+		case <-isLive:
+			//进来该case说明当前用户时活跃的，继续向下执行即可，该case放在第一行可以不做任何的处理，为了激活select，更新下面的的计时器
+		//12秒后超时
+		case <-time.After(time.Second * 15): //启动一个定时器，time.After本质是一个管道，从中读数据，超过15秒之后管道打开，不阻塞，可对其操作，即超时处理。并且每次执行time.After(time.Second * 15)代码的时候也会从重置计时器
+			//将当前user强制关闭
+			user.SendMsg("你已被踢出")
+			user.Offline() // 先移出 OnlineMap，避免后续广播写已关闭通道
+			//销毁用户资源
+			close(user.C) //关闭管道
+			//关闭连接
+			conn.Close()
+
+			//退出当前的handler
+			return //或者使用runtime.Goexit()
+		}
+	}
 }
 
 // 启动服务器的接口  （当前类的一个成员方法）
