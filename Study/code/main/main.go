@@ -1,6 +1,7 @@
 package main
 
 //一般导入多个包则使用以下方式：improt("..." "...")
+//注意要用空格或空行，不能够用 ，/；
 import (
 	"fmt"
 	"time"

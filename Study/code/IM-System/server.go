@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -57,15 +58,11 @@ func (this *Server) BroadCast(user *User, msg string) {
 func (this *Server) Handler(conn net.Conn) {
 	//当前连接的业务
 	fmt.Println("连接构建成功")
-	//首先创建一个user对象
-	user := NewUser(conn)
+	//首先创建一个user对象,传入当前server的this指针
+	user := NewUser(conn, this)
 
-	//1.用户上线，将用户添加到OnlineMap中
-	this.mapLock.Lock()              //先上锁
-	this.OnlineMap[user.Name] = user //键：user.Name   值：user对象
-	this.mapLock.Unlock()            //记得关锁
-	//2.广播用户上线的消息
-	this.BroadCast(user, "以上线")
+	//1.用户上线
+	user.Online()
 
 	//3.接收客户端发送的消息
 	go func() { //go一个匿名方法接收信息
@@ -73,7 +70,7 @@ func (this *Server) Handler(conn net.Conn) {
 		for {
 			n, err := conn.Read(buf) //返回的n为成功读取的长度
 			if n == 0 {
-				this.BroadCast(user, "下线")
+				user.Offline() //用户下线
 				return
 			}
 			if err != nil && err != io.EOF {
@@ -82,10 +79,11 @@ func (this *Server) Handler(conn net.Conn) {
 			}
 
 			//提取用户的消息（去除'\n'）
-			msg := string(buf[:n-1]) //取0--n-1的元素，因为最后一个为 \n 要去除
+			//改方法同时兼容windows和Linux
+			msg := strings.TrimSpace(string(buf[:n])) //去掉行尾的 \r\n，Windows 的 nc 回车发的是 CRLF  Linux的nc发送的是LF格式
 
 			//将得到的消息进行广播
-			this.BroadCast(user, msg)
+			user.DoMessage(msg) //用户进行处理
 		}
 	}()
 	//当前handler阻塞即可
