@@ -101,6 +101,30 @@ func (this *User) DoMessage(msg string) {
 			this.SendMsg("用户名修改成功: " + this.Name + "\n")
 		}
 
+	} else if len(msg) > 4 && msg[:3] == "to|" {
+		//消息格式：to|张三|消息内容
+
+		//1.获取对方用户名
+		remoteName := strings.Split(msg, "|")[1]
+		if remoteName == "" {
+			this.SendMsg("消息格式不正确，请使用 \"to|姓名|消息\"格式。\n")
+			return
+		}
+		//2.根据用户名得到对方user对象
+		remoteUser, ok := this.server.OnlineMap[remoteName]
+		if !ok { //先判断用户是否存在
+			this.SendMsg("该用户不存在！\n")
+			return
+		}
+
+		//3.获取消息内容，通过对方的user对象将消息内容发送出去
+		conten := strings.Split(msg, "|")[2] //切割出来的第2号元素为消息内容
+		if conten == "" {
+			this.SendMsg("无消息内容，请从发\n")
+			return
+		}
+		remoteUser.SendMsg(this.Name + "对你说：" + conten)
+
 	} else {
 		//通过user调用其关联的server中的BroadCast即可
 		this.server.BroadCast(this, msg)
@@ -110,15 +134,14 @@ func (this *User) DoMessage(msg string) {
 // 创建一个监听当前对象channel的goroutine方法 用于监听服务端消息并且实时发送给客户端
 func (this *User) ListenMessage() {
 	for {
-		for {
-			select {
-			case msg := <-this.C: //读取C(管道中)的数据
-				if _, err := this.conn.Write([]byte(msg + "\n")); err != nil { //将msg写入连接的管道/相当于发送数据
-					return // 连接已坏，协程自己退出
-				}
-			case <-this.done:
-				return
+		select {
+		case msg := <-this.C: //读取C(管道中)的数据
+			if _, err := this.conn.Write([]byte(msg + "\n")); err != nil { //将msg写入连接的管道/相当于发送数据
+				return // 连接已坏，协程自己退出
 			}
+		case <-this.done:
+			return
 		}
 	}
+
 }

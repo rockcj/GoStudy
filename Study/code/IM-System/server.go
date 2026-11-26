@@ -66,7 +66,7 @@ func (this *Server) Handler(conn net.Conn) {
 	user.Online()
 
 	//监听用户是否活跃的channel
-	isLive := make(chan bool)
+	isLive := make(chan bool,2)
 
 	//3.接收客户端发送的消息
 	go func() { //go一个匿名方法接收信息
@@ -111,7 +111,7 @@ func (this *Server) Handler(conn net.Conn) {
 			user.SendMsg("你已被踢出")
 			user.Offline() // 先移出 OnlineMap，避免后续广播写已关闭通道
 			//销毁用户资源
-			close(user.C) //关闭管道
+			user.Close() //关闭管道
 			//关闭连接
 			conn.Close()
 
