@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net"
+	"os"
 )
 
 type Client struct {
@@ -33,6 +35,12 @@ func NewClient(serverIp string, serverPort int) *Client {
 	return client
 }
 
+// 处理server回应的消息，直接显示标准输出即可
+func (c *Client) DealResponse() {
+	//一旦c.conn有消息就马上copy到标准输出stdout上
+	io.Copy(os.Stdout, c.conn) //该io方法是永久阻塞监听的
+}
+
 // 全局变量
 var serverIp string
 var serverPort int
@@ -49,6 +57,41 @@ func init() {
 	// 	所以 serverIp 得是包级变量（var serverIp string），不能是 main 里的局部变量，否则 init 里拿不到。
 	flag.StringVar(&serverIp, "ip", "127.0.0.1", "设置服务器ip地址(默认为127.0.0.1)") //解析命令行
 	flag.IntVar(&serverPort, "port", 8888, "设置服务器端口(默认8888)")
+}
+
+// 公聊模式
+func (c *Client) PublicChat() {
+	fmt.Println(">>>>>请输入聊天内容，exit表示退出该模式")
+	var chatMsg string
+	fmt.Scanln(&chatMsg)
+	for chatMsg != "exit" {
+		//消息不为空则发送
+		if len(chatMsg) != 0 {
+			sendMsg := chatMsg + "\n"
+			_, err := c.conn.Write([]byte(sendMsg))
+			if err != nil {
+				fmt.Println("conn Write:", err)
+				break
+			}
+		}
+		//然后要紧接着重置chatMsg，因为要靠其判断
+		chatMsg = ""
+		fmt.Println(">>>>>请输入聊天内容，exit表示退出该模式")
+		fmt.Scanln(&chatMsg) //然后继续输入
+	}
+}
+
+// 更新用户名
+func (c *Client) UpdatedName() bool {
+	fmt.Println(">>>>>>>>请输入用户名:")
+	fmt.Scanln(&c.Name)
+	sendMsg := "rename|" + c.Name + "\n"
+	_, err := c.conn.Write([]byte(sendMsg))
+	if err != nil {
+		fmt.Println("conn.Write:", err)
+		return false
+	}
+	return true
 }
 
 // 菜单显示
@@ -71,6 +114,7 @@ func (client *Client) menu() bool {
 	}
 }
 
+// 业务处理
 func (c *Client) run() {
 	for c.flag != 0 {
 		for !c.menu() { //如果menu不为true则进入死循环，一直调用菜单显示，如果为true则跳出循环，继续执行任务
@@ -88,7 +132,7 @@ func (c *Client) run() {
 			break
 		case 3:
 			//更新用户名
-			fmt.Println("更新用户名")
+			c.UpdatedName()
 			break
 		}
 	}
@@ -103,8 +147,11 @@ func main() {
 		fmt.Println(">>>>>服务器连接失败......")
 		return
 	}
-	fmt.Println(">>>>>>>>服务器连接成功！")
+	fmt.Println(">>>>>>服务器连接成功！")
+
+	//单独开启一个goroutine去处理server的回执消息
+	go client.DealResponse() //主要用于接收
 
 	//启动客户端的业务
-	client.run()
+	client.run() //主要用于发送
 }
