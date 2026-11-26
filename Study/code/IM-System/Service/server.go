@@ -106,7 +106,7 @@ func (this *Server) Handler(conn net.Conn) {
 		case <-isLive:
 			//进来该case说明当前用户时活跃的，继续向下执行即可，该case放在第一行可以不做任何的处理，为了激活select，更新下面的的计时器
 		//12秒后超时
-		case <-time.After(time.Second * 15): //启动一个定时器，time.After本质是一个管道，从中读数据，超过15秒之后管道打开，不阻塞，可对其操作，即超时处理。并且每次执行time.After(time.Second * 15)代码的时候也会从重置计时器
+		case <-time.After(time.Second * 150): //启动一个定时器，time.After本质是一个管道，从中读数据，超过150秒之后管道打开，不阻塞，可对其操作，即超时处理。并且每次执行time.After(time.Second * 150)代码的时候也会从重置计时器
 			//将当前user强制关闭
 			user.SendMsg("你已被踢出")
 			user.Offline() // 先移出 OnlineMap，避免后续广播写已关闭通道

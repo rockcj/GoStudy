@@ -103,26 +103,26 @@ func (this *User) DoMessage(msg string) {
 
 	} else if len(msg) > 4 && msg[:3] == "to|" {
 		//消息格式：to|张三|消息内容
-
-		//1.获取对方用户名
-		remoteName := strings.Split(msg, "|")[1]
-		if remoteName == "" {
-			this.SendMsg("消息格式不正确，请使用 \"to|姓名|消息\"格式。\n")
+		//先检查格式
+		parts := strings.SplitN(msg, "|", 3) // 最多切 3 段：["to", 姓名, 内容]
+		if len(parts) < 3 || parts[1] == "" || parts[2] == "" {
+			this.SendMsg("格式不对或内容为空，请使用 to|姓名|内容\n")
 			return
 		}
+		//1.获取对方用户名
+		remoteName := strings.Split(msg, "|")[1]
 		//2.根据用户名得到对方user对象
+		this.server.mapLock.RLock()
 		remoteUser, ok := this.server.OnlineMap[remoteName]
+		this.server.mapLock.RUnlock()
 		if !ok { //先判断用户是否存在
 			this.SendMsg("该用户不存在！\n")
 			return
 		}
 
 		//3.获取消息内容，通过对方的user对象将消息内容发送出去
+		//如果只有一个"|"则string只会切为2段，只有[0][1]，strings.Split(msg, "|")[2]会报数组越界错误
 		conten := strings.Split(msg, "|")[2] //切割出来的第2号元素为消息内容
-		if conten == "" {
-			this.SendMsg("无消息内容，请从发\n")
-			return
-		}
 		remoteUser.SendMsg(this.Name + "对你说：" + conten)
 
 	} else {

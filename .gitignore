@@ -8,6 +8,8 @@ Freecat/dist/
 Freecat/freecat-dist/freecat
 Freecat/freecat-dist/mihomo
 Study/code/IM-System/server
+Study/code/IM-System/Service/server
+Study/code/IM-System/Client/client
 
 # 安装包
 *.msi
